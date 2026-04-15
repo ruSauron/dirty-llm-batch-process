@@ -27,11 +27,11 @@ def exit_with_pause(message, is_error=False):
 def process_files():
     # 1. Проверка входной папки
     if not os.path.exists(INPUT_DIR):
-        exit_with_pause(f"Папка '{INPUT_DIR}' не найдена. Создайте её и положите файлы.", is_error=True)
+        exit_with_pause(f"Folder '{INPUT_DIR}' not found. Create it and place the files there.", is_error=True)
 
     all_files = [f for f in os.listdir(INPUT_DIR) if f.endswith(".txt")]
     if not all_files:
-        exit_with_pause(f"В папке '{INPUT_DIR}' нет текстовых файлов (.txt).", is_error=True)
+        exit_with_pause(f"There are no text files (.txt) in the '{INPUT_DIR}' folder.", is_error=True)
 
     # 2. Проверка выходной папки и пересечений
     if not os.path.exists(OUTPUT_DIR):
@@ -45,28 +45,29 @@ def process_files():
     if not intersection:
         # Если совпадений нет, просто берем все файлы
         files_to_process = all_files
-        print(f">> Совпадений не найдено. Начинаю обработку всех файлов ({len(all_files)} шт.).")
+        print(f">> No matches found. Starting processing all files ({len(all_files)} pcs.).")
     else:
-        print(f"\nНайдено совпадений: {len(intersection)} шт. (уже есть в папке результата)")
-        choice = input("[S]kip (пропустить готовые), [O]verwrite (перезаписать всё), [A]bort (отмена): ").lower()
+        print(f"\nMatches found: {len(intersection)} pcs. (already in the destination folder)")
+        choice = input("[S]kip ready, [O]verwrite all, [A]bort (cancel): ").lower()
         
         if choice in ['s', 'ы', 'c', 'с']:
             files_to_process = [f for f in all_files if f not in existing_files]
-            print(">> Пропускаем уже обработанные.")
+            print(">> Skiping the already processed files.")
         elif choice in ['o', 'щ', 'j', 'о', 'y', 'н']:
             files_to_process = all_files
-            print(">> Перезаписываем все.")
+            print(">> Rewrite all.")
         else:
-            exit_with_pause("Операция отменена пользователем.")
+            exit_with_pause("Operation cancelled by user.")
 
     if not files_to_process:
-        exit_with_pause("Нет новых файлов для обработки.")
+        exit_with_pause("There are no new files to process.")
 
     # --- ОСНОВНОЙ ЦИКЛ ОБРАБОТКИ ---
     total_p_tokens = 0
     total_c_tokens = 0
     
-    pbar = tqdm(files_to_process, desc="Прогресс", unit="file", mininterval=1e6)
+    # Убрали mininterval, чтобы бар обновлялся в реальном времени
+    pbar = tqdm(files_to_process, desc="Progress", unit="file")
 
     for filename in pbar:
         full_response_text = ""
@@ -74,8 +75,8 @@ def process_files():
         last_ui_time = time.time()
         tokens_at_last_update = 0
         
-        pbar.set_description(f"Файл: {filename[:20]}")
-        pbar.refresh()
+        # Обновляем текст в левой части бара
+        pbar.set_description(f"File: {filename[:25]}")
 
         try:
             with open(os.path.join(INPUT_DIR, filename), 'r', encoding='utf-8') as f:
@@ -94,6 +95,7 @@ def process_files():
             for chunk in stream:
                 if chunk.choices and chunk.choices[0].delta.content:
                     full_response_text += chunk.choices[0].delta.content
+                    # Если API не шлет usage в каждом чанке, считаем примерно
                     curr_file_tokens += 1 
 
                 if chunk.usage:
@@ -101,43 +103,41 @@ def process_files():
                     total_p_tokens += chunk.usage.prompt_tokens
                     total_c_tokens += chunk.usage.completion_tokens
 
-                # Троттлинг вывода (раз в 10 секунд)
+                # Троттлинг вывода (раз в PRINT_INTERVAL секунд)
                 now = time.time()
                 delta_t = now - last_ui_time
                 if delta_t >= PRINT_INTERVAL:
                     new_tokens = curr_file_tokens - tokens_at_last_update
                     speed = new_tokens / delta_t if delta_t > 0 else 0
                     
+                    # Обновляем правую часть бара (статистику)
                     pbar.set_postfix({
                         'cur_tok': curr_file_tokens,
                         't/s': f"{speed:.1f}",
-                        'total': total_p_tokens + total_c_tokens + curr_file_tokens
+                        'total': total_p_tokens + total_c_tokens
                     })
                     
                     preview = full_response_text[-120:].replace("\n", " ")
-                    pbar.write(f"[{filename}] {speed:.1f} t/s | Превью: \s{preview}\s")
-                    pbar.refresh()
+                    pbar.write(f"[{filename}] {speed:.1f} t/s | Preview: \n{preview}\n")
                     
                     last_ui_time = now
                     tokens_at_last_update = curr_file_tokens
 
-            # Сохранение
+            # Сохранение файла
             with open(os.path.join(OUTPUT_DIR, filename), 'w', encoding='utf-8') as f:
                 f.write(full_response_text)
             
-            pbar.refresh()
-
         except Exception as e:
-            pbar.write(f"!!! Ошибка в {filename}: {e}")
+            pbar.write(f"!!! Error in {filename}: {e}")
 
     # Финальный аккорд
-    print(f"\n{'='*50}\nГОТОВО! Итого токенов: {total_p_tokens + total_c_tokens}\n{'='*50}")
-    exit_with_pause("Все задачи выполнены.")
+    print(f"\n{'='*50}\nDONE! Total tokens: {total_p_tokens + total_c_tokens}\n{'='*50}")
+    exit_with_pause("All tasks completed.")
 
 if __name__ == "__main__":
     try:
         process_files()
     except KeyboardInterrupt:
-        exit_with_pause("Программа прервана пользователем (Ctrl+C).")
+        exit_with_pause("The program was terminated by the user (Ctrl+C).")
     except Exception as e:
-        exit_with_pause(f"Непредвиденная ошибка: {e}", is_error=True)
+        exit_with_pause(f"Unexpected error: {e}", is_error=True)
