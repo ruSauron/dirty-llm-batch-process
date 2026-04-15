@@ -21,7 +21,7 @@ def exit_with_pause(message, is_error=False):
     """Выводит сообщение и ждет нажатия Enter перед выходом."""
     prefix = "!!! ОШИБКА: " if is_error else ""
     print(f"\n{prefix}{message}")
-    input("\nНажмите Enter, чтобы закрыть это окно...")
+    input("\nPress Enter to close this window...")
     sys.exit()
 
 def process_files():
