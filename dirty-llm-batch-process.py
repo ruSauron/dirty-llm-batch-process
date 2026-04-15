@@ -3,6 +3,7 @@ import sys
 import time
 from openai import OpenAI
 from tqdm import tqdm
+import time
 
 # --- НАСТРОЙКИ ---
 client = OpenAI(base_url="http://localhost:5000/v1", api_key="not-needed")
@@ -19,9 +20,10 @@ PRINT_INTERVAL = 10.0  # Интервал обновления консоли (�
 
 def exit_with_pause(message, is_error=False):
     """Выводит сообщение и ждет нажатия Enter перед выходом."""
-    prefix = "!!! ОШИБКА: " if is_error else ""
+    prefix = "!!! ERROR: " if is_error else ""
     print(f"\n{prefix}{message}")
-    input("\nPress Enter to close this window...")
+    print("The window will close in 5 seconds...")
+    time.sleep(5)
     sys.exit()
 
 def process_files():
@@ -48,14 +50,20 @@ def process_files():
         print(f">> No matches found. Starting processing all files ({len(all_files)} pcs.).")
     else:
         print(f"\nMatches found: {len(intersection)} pcs. (already in the destination folder)")
-        choice = input("[S]kip ready, [O]verwrite all, [A]bort (cancel): ").lower()
+        
+        # --- ДОБАВЛЕНО: Вывод имен совпадающих файлов ---
+        print("Duplicate files:")
+        print("\n".join(intersection))
+        # -----------------------------------------------
+
+        choice = input("\n[S]kip ready, [O]verwrite all, [A]bort (cancel): ").lower()
         
         if choice in ['s', 'ы', 'c', 'с']:
             files_to_process = [f for f in all_files if f not in existing_files]
-            print(">> Skiping the already processed files.")
+            print(">> Skipping the already processed files.")
         elif choice in ['o', 'щ', 'j', 'о', 'y', 'н']:
             files_to_process = all_files
-            print(">> Rewrite all.")
+            print(">> Overwriting all.")
         else:
             exit_with_pause("Operation cancelled by user.")
 
@@ -76,7 +84,7 @@ def process_files():
         tokens_at_last_update = 0
         
         # Обновляем текст в левой части бара
-        pbar.set_description(f"File: {filename[:25]}")
+        pbar.set_description(f"File: {filename[:32]}")
 
         try:
             with open(os.path.join(INPUT_DIR, filename), 'r', encoding='utf-8') as f:
